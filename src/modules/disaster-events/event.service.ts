@@ -50,8 +50,8 @@ export async function ingestEvents(events: NormalizedEvent[]): Promise<{ inserte
           `INSERT INTO disaster_events
              (external_id, data_source_id, disaster_type, official_title, source_agency,
               warning_level, description, area, status, issued_at, last_updated_at,
-              official_source_url, is_leyte_priority)
-           VALUES ($1,$2,$3,$4,$5,$6,$7, ${geomExpr}, 'active', $8, now(), $9, $10)
+              official_source_url, is_leyte_priority, track)
+           VALUES ($1,$2,$3,$4,$5,$6,$7, ${geomExpr}, 'active', $8, now(), $9, $10, $11)
            RETURNING id`,
           [
             ev.externalId,
@@ -63,7 +63,8 @@ export async function ingestEvents(events: NormalizedEvent[]): Promise<{ inserte
             ev.description ?? null,
             ev.issuedAt,
             ev.officialSourceUrl ?? null,
-            leytePriority
+            leytePriority,
+            ev.track ? JSON.stringify(ev.track) : null
           ]
         );
         eventId = insertResult.rows[0].id;
@@ -81,9 +82,9 @@ export async function ingestEvents(events: NormalizedEvent[]): Promise<{ inserte
       } else {
         eventId = existing.rows[0].id;
         await client.query(
-          `UPDATE disaster_events SET warning_level = $1, description = $2, status = 'updated', last_updated_at = now()
+          `UPDATE disaster_events SET warning_level = $1, description = $2, status = 'updated', last_updated_at = now(), track = COALESCE($4, track)
            WHERE id = $3`,
-          [ev.warningLevel ?? null, ev.description ?? null, eventId]
+          [ev.warningLevel ?? null, ev.description ?? null, eventId, ev.track ? JSON.stringify(ev.track) : null]
         );
         await client.query(
           `INSERT INTO disaster_event_updates (disaster_event_id, update_text, warning_level)

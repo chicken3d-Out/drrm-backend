@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { SourceAdapter, NormalizedEvent } from './types';
+import { SourceAdapter, NormalizedEvent, TrackPoint } from './types';
 import { PH_BBOX } from '../config/env';
 
 const CATEGORY_MAP: Record<string, NormalizedEvent['disasterType']> = {
@@ -30,10 +30,23 @@ export class EonetAdapter implements SourceAdapter {
       const disasterType = CATEGORY_MAP[category];
       if (!disasterType) continue; // skip categories we don't track (e.g. dust/haze, snow, temperature)
 
-      const latestGeom = ev.geometry?.[ev.geometry.length - 1];
+      const geometryHistory = (ev.geometry ?? []).filter((g: any) => g.type === 'Point');
+      const latestGeom = geometryHistory[geometryHistory.length - 1];
       if (!latestGeom) continue;
-      const [lon, lat] = latestGeom.type === 'Point' ? latestGeom.coordinates : [null, null];
+      const [lon, lat] = latestGeom.coordinates;
       if (lon == null || lat == null || !withinPhilippines(lon, lat)) continue;
+
+      // Storms move over time — EONET's geometry array is the full track
+      // history for this event, so we keep all of it (not just the latest
+      // point) to support animated track playback on the map.
+      let track: TrackPoint[] | undefined;
+      if (disasterType === 'tropical_cyclone' && geometryHistory.length > 1) {
+        track = geometryHistory.map((g: any) => ({
+          lon: g.coordinates[0],
+          lat: g.coordinates[1],
+          date: g.date
+        }));
+      }
 
       events.push({
         externalId: ev.id,
@@ -44,7 +57,8 @@ export class EonetAdapter implements SourceAdapter {
         description: ev.description ?? undefined,
         issuedAt: new Date(latestGeom.date),
         officialSourceUrl: ev.sources?.[0]?.url ?? ev.link,
-        point: { lon, lat }
+        point: { lon, lat },
+        track
       });
     }
     return events;

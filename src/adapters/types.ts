@@ -1,3 +1,9 @@
+export interface TrackPoint {
+  lon: number;
+  lat: number;
+  date: string; // ISO timestamp
+}
+
 export interface NormalizedEvent {
   externalId: string;
   dataSourceName: string; // must match `name` in data_sources table
@@ -21,6 +27,9 @@ export interface NormalizedEvent {
   // Geometry: either a point (lon/lat) or a polygon (array of [lon,lat] rings)
   point?: { lon: number; lat: number };
   polygon?: number[][][];
+  // Historical positions for moving hazards (tropical cyclones). Ordered
+  // oldest-to-newest. Omitted for single-point hazards.
+  track?: TrackPoint[];
 }
 
 export interface SourceAdapter {

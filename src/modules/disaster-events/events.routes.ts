@@ -13,7 +13,7 @@ const STAFF_ROLES = ['DRRM_ADMIN', 'DIVISION_DRRM_STAFF'];
 router.get('/active', requireAuth, async (_req, res) => {
   const { rows } = await query(
     `SELECT id, disaster_type, official_title, source_agency, warning_level, description,
-            status, issued_at, last_updated_at, official_source_url, is_leyte_priority,
+            status, issued_at, last_updated_at, official_source_url, is_leyte_priority, track,
             ST_Y(area::geometry) AS latitude, ST_X(area::geometry) AS longitude
      FROM disaster_events
      WHERE status IN ('active','updated')
