@@ -2,8 +2,15 @@ import { Pool, QueryResultRow } from 'pg';
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Render (and most managed Postgres providers) require SSL for external
+// connections but use a self-signed certificate chain, so we skip strict
+// verification. Local development (localhost/127.0.0.1) doesn't need SSL at all.
+const connectionString = process.env.DATABASE_URL ?? '';
+const isLocal = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
+
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL
+  connectionString,
+  ssl: isLocal ? false : { rejectUnauthorized: false }
 });
 
 pool.on('error', (err) => {
