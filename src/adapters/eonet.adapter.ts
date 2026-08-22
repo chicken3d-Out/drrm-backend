@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { SourceAdapter, NormalizedEvent, TrackPoint } from './types';
-import { PH_BBOX } from '../config/env';
+import { PH_BBOX, PAR_BBOX } from '../config/env';
 
 const CATEGORY_MAP: Record<string, NormalizedEvent['disasterType']> = {
   volcanoes: 'volcano',
@@ -9,8 +9,8 @@ const CATEGORY_MAP: Record<string, NormalizedEvent['disasterType']> = {
   floods: 'flood'
 };
 
-function withinPhilippines(lon: number, lat: number): boolean {
-  return lon >= PH_BBOX.minLon && lon <= PH_BBOX.maxLon && lat >= PH_BBOX.minLat && lat <= PH_BBOX.maxLat;
+function withinBox(lon: number, lat: number, box: typeof PH_BBOX): boolean {
+  return lon >= box.minLon && lon <= box.maxLon && lat >= box.minLat && lat <= box.maxLat;
 }
 
 // NASA EONET v3 — public, no API key required.
@@ -34,7 +34,16 @@ export class EonetAdapter implements SourceAdapter {
       const latestGeom = geometryHistory[geometryHistory.length - 1];
       if (!latestGeom) continue;
       const [lon, lat] = latestGeom.coordinates;
-      if (lon == null || lat == null || !withinPhilippines(lon, lat)) continue;
+      if (lon == null || lat == null) continue;
+
+      // Tropical cyclones use the much wider PAR (Philippine Area of
+      // Responsibility) box so an approaching typhoon is visible — with its
+      // track — while still out at sea, instead of only appearing once
+      // already on top of the Philippines. Other hazard types (volcano,
+      // wildfire, flood) stay scoped to the tighter Philippines box since
+      // they're inherently local, not something that "approaches" from afar.
+      const inScope = disasterType === 'tropical_cyclone' ? withinBox(lon, lat, PAR_BBOX) : withinBox(lon, lat, PH_BBOX);
+      if (!inScope) continue;
 
       // Storms move over time — EONET's geometry array is the full track
       // history for this event, so we keep all of it (not just the latest

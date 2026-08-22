@@ -39,3 +39,16 @@ export const PH_BBOX = {
   maxLon: 127.0,
   maxLat: 21.5
 };
+
+// Philippine Area of Responsibility (PAR) — the much wider region PAGASA
+// itself monitors for approaching tropical cyclones, roughly 5°N-25°N,
+// 105°E-135°E. Tropical cyclones use this wider box (rather than PH_BBOX)
+// so an approaching typhoon is visible — with its track — well before it
+// reaches the Philippines, instead of only appearing once it's already
+// on top of the country.
+export const PAR_BBOX = {
+  minLon: 105.0,
+  minLat: 5.0,
+  maxLon: 135.0,
+  maxLat: 25.0
+};
