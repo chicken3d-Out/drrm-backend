@@ -23,6 +23,18 @@ router.get('/active', requireAuth, async (_req, res) => {
   res.json(rows);
 });
 
+// Aggregate count of distinct schools affected by any currently active event —
+// used for the dashboard's "Affected Schools" summary card.
+router.get('/affected-schools/summary', requireAuth, async (_req, res) => {
+  const { rows } = await query(
+    `SELECT COUNT(DISTINCT af.school_id) AS count
+     FROM affected_schools af
+     JOIN disaster_events de ON de.id = af.disaster_event_id
+     WHERE de.status IN ('active','updated')`
+  );
+  res.json({ count: parseInt(rows[0].count, 10) });
+});
+
 router.get('/history', requireAuth, async (req, res) => {
   const { from, to, disaster_type, municipality, page = '1' } = req.query;
   const clauses: string[] = [];
