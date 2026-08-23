@@ -100,6 +100,12 @@ router.get('/:id', requireAuth, async (req, res) => {
 // Manual entry — for official PAGASA/PHIVOLCS bulletins that don't come through
 // a structured feed. Verbatim wording is the staff member's responsibility to
 // transcribe accurately from the official source.
+const trackPointSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  date: z.string().datetime()
+});
+
 const manualEventSchema = z.object({
   disasterType: z.enum([
     'rainfall',
@@ -114,12 +120,17 @@ const manualEventSchema = z.object({
     'other'
   ]),
   officialTitle: z.string().min(3),
-  sourceAgency: z.string().min(2), // e.g. "PAGASA", "PHIVOLCS"
+  sourceAgency: z.string().min(2), // e.g. "PAGASA", "PHIVOLCS", "JTWC"
   warningLevel: z.string().optional(), // verbatim, e.g. "Signal No. 2", "Orange Rainfall Warning"
   description: z.string().optional(),
   officialSourceUrl: z.string().url().optional(),
   latitude: z.number().min(-90).max(90).optional(),
-  longitude: z.number().min(-180).max(180).optional()
+  longitude: z.number().min(-180).max(180).optional(),
+  // Optional storm track — lets staff plot a developing typhoon's known/
+  // forecast path manually (e.g. from a JTWC or PAGASA bulletin) while it's
+  // still too new for NASA EONET/GDACS to have cataloged automatically.
+  // Ordered oldest-to-newest, same shape as the automated adapters produce.
+  track: z.array(trackPointSchema).min(2).optional()
 });
 
 router.post('/manual', requireAuth, requireRole(...STAFF_ROLES), async (req: AuthedRequest, res) => {
@@ -135,13 +146,26 @@ router.post('/manual', requireAuth, requireRole(...STAFF_ROLES), async (req: Aut
       ? `ST_SetSRID(ST_MakePoint(${d.longitude}, ${d.latitude}), 4326)`
       : 'NULL';
 
+  const trackJson = d.track
+    ? JSON.stringify(d.track.map((t) => ({ lon: t.longitude, lat: t.latitude, date: t.date })))
+    : null;
+
   const { rows } = await query(
     `INSERT INTO disaster_events
        (external_id, data_source_id, disaster_type, official_title, source_agency,
-        warning_level, description, area, status, issued_at, official_source_url, is_leyte_priority)
-     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, ${geomExpr}, 'active', now(), $7, true)
+        warning_level, description, area, status, issued_at, official_source_url, is_leyte_priority, track)
+     VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, ${geomExpr}, 'active', now(), $7, true, $8)
      RETURNING id`,
-    [dataSourceId, d.disasterType, d.officialTitle, d.sourceAgency, d.warningLevel ?? null, d.description ?? null, d.officialSourceUrl ?? null]
+    [
+      dataSourceId,
+      d.disasterType,
+      d.officialTitle,
+      d.sourceAgency,
+      d.warningLevel ?? null,
+      d.description ?? null,
+      d.officialSourceUrl ?? null,
+      trackJson
+    ]
   );
   const eventId = rows[0].id;
 
